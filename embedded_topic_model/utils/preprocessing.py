@@ -3,9 +3,11 @@ import numpy as np
 from scipy import sparse
 from typing import Tuple, List
 
+def _idx_not_empty_documents(documents):
+    return [i for i, doc in enumerate(documents) if doc != []]
 
-def _remove_empty_documents(documents):
-    return [doc for doc in documents if doc != []]
+def _filter(documents, keep):
+    return [documents[i] for i in keep]
 
 
 def _create_list_words(documents):
@@ -45,13 +47,14 @@ def _to_numpy_array(documents):
     return np.array([[np.array(doc) for doc in documents]],
                     dtype=object).squeeze()
 
-
 def create_etm_datasets(
         dataset: List[str],
         train_size=1.0,
         min_df=1,
         max_df=100.0,
-        debug_mode=False) -> Tuple[list, dict, dict]:
+        permute: bool=False, 
+        debug_mode: bool=False,
+        **kwargs) -> Tuple[list, dict, dict]:
     """
     Creates vocabulary and train / test datasets from a given corpus. The vocabulary and datasets can
     be used to train an ETM model.
@@ -75,8 +78,10 @@ def create_etm_datasets(
         train_dataset (dict): BOW training dataset, split in tokens and counts. Must be used on ETM's fit() method.
         test_dataset (dict): BOW testing dataset, split in tokens and counts. Can be use on ETM's perplexity() method.
     """
-    vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
+    vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, **kwargs)
     vectorized_documents = vectorizer.fit_transform(dataset)
+
+    print(vectorized_documents)
 
     documents_without_stop_words = [
         [word for word in document.split()
@@ -112,7 +117,7 @@ def create_etm_datasets(
     num_docs = signed_documents.shape[0]
     train_dataset_size = int(np.floor(train_size * num_docs))
     test_dataset_size = int(num_docs - train_dataset_size)
-    idx_permute = np.random.permutation(num_docs).astype(int)
+    idx_permute = np.random.permutation(num_docs).astype(int) if permute else np.arange(num_docs)
 
     # Remove words not in train_data
     vocabulary = list(set([w for idx_d in range(train_dataset_size)
@@ -146,8 +151,10 @@ def create_etm_datasets(
     if debug_mode:
         print('Removing empty documents...')
 
-    docs_train = _remove_empty_documents(docs_train)
-    docs_test = _remove_empty_documents(docs_test)
+    train_keep_idx = _idx_not_empty_documents(docs_train)
+    test_keep_idx = _idx_not_empty_documents(docs_test)
+    docs_train = _filter(docs_train, train_keep_idx)
+    docs_test = _filter(docs_test, test_keep_idx)
 
     # Remove test documents with length=1
     docs_test = [doc for doc in docs_test if len(doc) > 1]
@@ -224,6 +231,7 @@ def create_etm_datasets(
     train_dataset = {
         'tokens': _to_numpy_array(bow_train_tokens),
         'counts': _to_numpy_array(bow_train_counts),
+        'idx': train_keep_idx
     }
 
     test_dataset = {

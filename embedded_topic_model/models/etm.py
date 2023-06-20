@@ -174,10 +174,12 @@ class ETM(object):
 
         model_embeddings = np.zeros((self.vocabulary_size, self.emb_size))
 
+        print(vectors)
         for i, word in enumerate(self.vocabulary):
             try:
                 model_embeddings[i] = vectors[word]
-            except KeyError:
+            except:
+                print("missing embedding:", word)
                 model_embeddings[i] = np.random.normal(
                     scale=0.6, size=(self.emb_size, ))
         return torch.from_numpy(model_embeddings).to(self.device)
